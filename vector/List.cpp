@@ -7,26 +7,68 @@ public:
     List() : m_size(0), m_capacity(0), m_data(nullptr) {}
 
     List(size_t initial_capacity)
-        : m_size(0), m_capacity(initial_capacity), m_data(alloc::allocate(m_allocator, m_capacity)) {}
+        : m_size(0), m_capacity(initial_capacity),
+          m_data(alloc::allocate(m_allocator, m_capacity)) {}
 
     ~List() {
         if (!m_data) {
             return;
         }
+        delete_data();
+    }
 
+    List(const List &other)
+        : m_size(other.m_size), m_capacity(other.m_capacity),
+          m_data(alloc::allocate(m_allocator, m_size)) {
         for (size_t i = 0; i < m_size; ++i) {
-            alloc::destroy(m_allocator, m_data + i);
+            alloc::construct(m_allocator, m_data + i, other);
         }
-        alloc::deallocate(m_allocator, m_data, m_capacity);
     }
 
-    T &operator[](size_t idx) {
-        return this->get(idx);
+    List &operator=(const List &rhs) {
+        if (m_capacity <= rhs.m_size) {
+            delete_data();
+
+            m_size = rhs.m_size;
+            m_capacity = rhs.m_size;
+
+            m_data = alloc::allocate(m_allocator, m_capacity);
+
+            for (size_t i = 0; i < m_size; ++i) {
+                alloc::construct(m_allocator, m_data + i, rhs);
+            }
+        } else {
+            for (size_t i = 0; i < rhs.m_size; ++i) {
+                m_data[i] = rhs.m_data[i];
+            }
+            if (m_size > rhs.m_size) {
+                for (size_t i = rhs.m_size + 1; i < m_size; ++i) {
+                    alloc::destroy(m_data[i]);
+                }
+            }
+            m_size = rhs.m_size;
+        }
+        return *this;
     }
 
-    const T &operator[](size_t idx) const {
-        return this->get(idx);
+    List(List &&other) noexcept
+        : m_size(other.m_size), m_capacity(other.m_capacity),
+          m_data(other.m_data) {
+        other.m_data = nullptr;
     }
+
+    List &operator=(List &&rhs) noexcept {
+        delete_data();
+        m_size = rhs.m_size;
+        m_capacity = rhs.m_capacity;
+        m_data = rhs.m_data;
+        rhs.m_data = nullptr;
+        return *this;
+    }
+
+    T &operator[](size_t idx) { return this->get(idx); }
+
+    const T &operator[](size_t idx) const { return this->get(idx); }
 
     T &get(size_t idx) {
         if (idx >= m_size) {
@@ -64,21 +106,18 @@ public:
     template <typename... Args>
     void empend(Args &&...args) {
         expand_if_needed();
-        alloc::construct(m_allocator, m_data + m_size++, std::forward<Args>(args)...);
+        alloc::construct(m_allocator, m_data + m_size++,
+                         std::forward<Args>(args)...);
     }
 
-    size_t size() const {
-        return m_size;
-    }
+    size_t size() const { return m_size; }
 
-    T& back() {
-        return m_data[m_size - 1];
-    }
+    T &back() { return m_data[m_size - 1]; }
 
-    const T& back() const {
-        return m_data[m_size - 1];
-    }
+    const T &back() const { return m_data[m_size - 1]; }
 
+    // change std::allocator<T> to Allocator once done
+    // using current setup for easier lsp autocomplete
 private:
     std::allocator<T> m_allocator;
     size_t m_size;
@@ -109,6 +148,13 @@ private:
         }
         alloc::deallocate(m_allocator, m_data, oldCapacity);
         m_data = new_data;
+    }
+
+    void delete_data() {
+        for (size_t i = 0; i < m_size; ++i) {
+            alloc::destroy(m_allocator, m_data + i);
+        }
+        alloc::deallocate(m_allocator, m_data, m_capacity);
     }
 };
 
