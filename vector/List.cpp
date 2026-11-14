@@ -1,9 +1,73 @@
+#include <functional>
 #include <memory>
 #include <ostream>
 
 template <typename T, typename Allocater = std::allocator<T>>
 class List {
+private:
+    // maybe do some more template shenanigans to not need ReferenceType passed
+    // in and deduce a const T & automatically if PointerType is a T const *
+    template <typename PointerType, typename ReferenceType, typename Vec>
+    class VectorIterator {
+        using ValueType = Vec::ValueType;
+
+    public:
+        VectorIterator(ValueType *data) : iter_data(data) {}
+
+        VectorIterator &operator++() {
+            ++iter_data;
+            return *this;
+        }
+
+        VectorIterator operator++(int) {
+            VectorIterator copy = *this;
+            ++(*this);
+            return copy;
+        }
+
+        VectorIterator &operator--() {
+            --iter_data;
+            return *this;
+        }
+
+        VectorIterator operator--(int) {
+            VectorIterator copy = *this;
+            --(*this);
+            return copy;
+        }
+
+        VectorIterator operator+(size_t rhs) const {
+            return VectorIterator(iter_data + rhs);
+        }
+
+        VectorIterator operator-(size_t rhs) const {
+            return VectorIterator(iter_data - rhs);
+        }
+
+        bool operator==(const VectorIterator &other) const {
+            return iter_data == other.iter_data;
+        }
+
+        bool operator!=(const VectorIterator &other) const {
+            return iter_data != other.iter_data;
+        }
+
+        ReferenceType operator[](size_t idx) { return iter_data[idx]; }
+
+        PointerType *operator->() { return iter_data; }
+
+        ReferenceType operator*() { return *iter_data; }
+
+    private:
+        ValueType *iter_data;
+    };
+
 public:
+    using Iterator = VectorIterator<T *, T &, List<T>>;
+    using ConstIterator = VectorIterator<T const *, const T &, List<T>>;
+
+    using ValueType = T;
+
     List() : m_size(0), m_capacity(0), m_data(nullptr) {}
 
     List(size_t initial_capacity)
@@ -112,9 +176,35 @@ public:
 
     size_t size() const { return m_size; }
 
+    Iterator begin() { return Iterator(m_data); }
+
+    Iterator end() { return Iterator(m_data + m_size); }
+
+    ConstIterator begin() const { return ConstIterator(m_data); }
+
+    ConstIterator end() const { return ConstIterator(m_data + m_size); }
+
     T &back() { return m_data[m_size - 1]; }
 
     const T &back() const { return m_data[m_size - 1]; }
+
+    void for_each(std::function<void(const T &)> callback) const {
+        for (const T &item : *this) {
+            callback(item);
+        }
+    }
+
+    void for_each(std::function<void(T)> callback) const {
+        for (T item : *this) {
+            callback(item);
+        }
+    }
+
+    void for_each(std::function<void(T &)> callback) {
+        for (T &item : *this) {
+            callback(item);
+        }
+    }
 
     // change std::allocator<T> to Allocator once done
     // using current setup for easier lsp autocomplete
@@ -137,16 +227,17 @@ private:
             return;
         }
 
-        size_t oldCapacity = m_capacity;
+        size_t old_capacity = m_capacity;
         if (m_capacity == 0) {
             m_capacity = DEFAULT_INITIAL_CAPACITY;
         }
+
         m_capacity *= CAPACITY_GROWTH_MULTIPLIER;
         T *new_data = alloc::allocate(m_allocator, m_capacity);
         for (size_t i = 0; i < m_size; ++i) {
             new_data[i] = std::move(m_data[i]);
         }
-        alloc::deallocate(m_allocator, m_data, oldCapacity);
+        alloc::deallocate(m_allocator, m_data, old_capacity);
         m_data = new_data;
     }
 
