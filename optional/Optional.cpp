@@ -1,8 +1,7 @@
 #include <utility>
 
-class None {
-    None() = default;
-};
+struct None_t {};
+constexpr None_t None;
 
 template <typename T>
 class Optional {
@@ -11,7 +10,7 @@ public:
     explicit Optional(Args &&...args)
         : m_value(std::forward<Args>(args)...), m_has(true) {}
 
-    Optional(None none) : m_dummy(), m_has(false) {};
+    Optional(None_t none) : m_dummy(0), m_has(false) {};
 
     bool has() const { return m_has; }
 
@@ -19,9 +18,19 @@ public:
 
     const T &operator*() const { return get(); }
 
-    T &get() { return m_value; }
+    T &get() {
+        if (!m_has) {
+            throw "optional empty";
+        }
+        return m_value;
+    }
 
-    const T &get() const { return m_value; }
+    const T &get() const {
+        if (!m_has) {
+            throw "optional empty";
+        }
+        return m_value;
+    }
 
 private:
     union {
