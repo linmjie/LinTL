@@ -13,23 +13,29 @@ public:
     Optional(None_t none) : m_dummy(0), m_has(false) {};
 
     bool has() const { return m_has; }
+    explicit operator bool() const { return m_has; }
 
-    T &operator*() { return get(); }
+    const T &operator*() const & noexcept { return get(); }
+    T &operator*() & noexcept { return get(); }
+    T &&operator*() && noexcept { return get(); }
 
-    const T &operator*() const { return get(); }
-
-    T &get() {
+    const T &get() const & {
         if (!m_has) {
             throw "optional empty";
         }
         return m_value;
     }
-
-    const T &get() const {
+    T &get() & {
         if (!m_has) {
             throw "optional empty";
         }
         return m_value;
+    }
+    T &&get() && {
+        if (!m_has) {
+            throw "optional empty";
+        }
+        return std::move(m_value);
     }
 
 private:
